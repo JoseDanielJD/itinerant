@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GDD Interactivo: El Itinerante</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 
+        Chosen Palette: Éter Oscuro y Almas Enfrentadas (Dark Ether & Clashing Souls)
+        Application Structure Plan: Una aplicación de una sola página con una barra de navegación superior fija para cambiar entre las secciones principales del GDD (Introducción, Mecánicas, Mundo, Personajes, etc.). La sección "Mecánicas" contará con un "Simulador de Alineación Moral" interactivo donde los usuarios pueden hacer clic en diferentes estados morales (Ángel, Demonio, Humano Neutral) para ver dinámicamente las habilidades asociadas, las percepciones del mundo y las debilidades. Esta estructura se elige para hacer que el denso contenido del GDD sea digerible y para destacar interactivamente la dinámica central del juego (el sistema de moralidad). Otras secciones utilizarán interfaces con pestañas o diseños textuales claros para facilitar la lectura.
+        Visualization & Content Choices: 
+            - Introducción/Concepto/Historia/Estilo: Secciones de texto formateado estático. Objetivo: Informar. Método: Diseños HTML/Tailwind. Interacción: Navegación.
+            - Sistema de Moralidad: Barra segmentada interactiva HTML/CSS que representa el espectro de moralidad. Objetivo: Explorar, Comparar. Método: JS para actualizar bloques de contenido de texto que muestran "Percepción del Mundo", "Habilidades Activas/Pasivas", "Debilidades" para Ángel, Demonio, Humano Neutral según el clic del usuario. Interacción: Clic en el segmento de moralidad.
+            - Combate/Progresión/Gestión de Almas: Texto formateado, posiblemente con subpestañas si el contenido es extenso. Objetivo: Informar. Método: HTML/Tailwind.
+            - Mundo (Planos): Vista con pestañas (Humano, Angélico, Demoníaco). Objetivo: Comparar, Informar. Método: Pestañas HTML/Tailwind, JS para cambiar de pestaña. Cada pestaña muestra texto descriptivo.
+            - Puntos de Interés/Lore: Listas categorizadas o secciones expandibles. Objetivo: Informar, Organizar. Método: HTML/Tailwind.
+            - Personajes (Jugador, NPCs, Facciones, Jefes): Diseño basado en pestañas o tarjetas. Objetivo: Informar, Organizar. Método: HTML/Tailwind, JS para cualquier visualización dinámica.
+            - Todos los elementos gráficos (como la barra de moralidad o los divisores) serán HTML/CSS puro con Tailwind. No se necesita Chart.js ya que no hay datos cuantitativos para graficar del GDD.
+        CONFIRMATION: NO SVG graphics used. NO Mermaid JS used.
+    -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif; /* Tailwind default is often fine, but explicitly setting it */
+        }
+        .content-section {
+            display: none;
+        }
+        .content-section.active {
+            display: block;
+        }
+        .nav-button.active {
+            background-color: #7c3aed; /* purple-600 */
+            color: white;
+        }
+        .moral-bar-segment {
+            cursor: pointer;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .moral-bar-segment:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .moral-bar-segment.active-moral {
+            transform: translateY(-2px);
+            box-shadow: 0 0 15px currentColor; /* Glow effect with its own border color */
+        }
+        .tab-button.active {
+            border-bottom-width: 2px;
+            font-weight: 600;
+        }
+        /* Scrollbar styling for a more integrated look */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b; /* slate-800 */
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #4a5568; /* gray-600 */
+            border-radius: 4px;
+            border: 2px solid #1e293b; /* slate-800 */
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: #718096; /* gray-500 */
+        }
+        .stat-block {
+            border-left-width: 4px;
+            padding-left: 1rem;
+            margin-bottom: 1rem;
+        }
+        .angel-theme { border-color: #38bdf8; /* sky-400 */ color: #e0f2fe; /* sky-50 */ }
+        .angel-theme h4 { color: #7dd3fc; /* sky-300 */ }
+        .demon-theme { border-color: #f87171; /* red-400 */ color: #fee2e2; /* red-50 */ }
+        .demon-theme h4 { color: #fca5a5; /* red-300 */ }
+        .human-theme { border-color: #9ca3af; /* gray-400 */ color: #e5e7eb; /* gray-200 */ }
+        .human-theme h4 { color: #d1d5db; /* gray-300 */ }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-300 antialiased">
+
+    <header class="bg-slate-800 text-white p-4 shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto flex flex-col sm:flex-row justify-between items-center">
+            <h1 class="text-2xl font-bold text-purple-400">GDD Interactivo: El Itinerante</h1>
+            <nav class="mt-2 sm:mt-0 flex flex-wrap justify-center">
+                <button onclick="showSection('introduccion')" class="nav-button active text-sm sm:text-base py-2 px-3 m-1 rounded hover:bg-purple-500 transition-colors">Introducción</button>,
+                <button onclick="showSection('mecanicas')" class="nav-button text-sm sm:text-base py-2 px-3 m-1 rounded hover:bg-purple-500 transition-colors">Mecánicas</button>
+                <button onclick="showSection('mundo')" class="nav-button text-sm sm:text-base py-2 px-3 m-1 rounded hover:bg-purple-500 transition-colors">Mundo</button>
+                <button onclick="showSection('personajes')" class="nav-button text-sm sm:text-base py-2 px-3 m-1 rounded hover:bg-purple-500 transition-colors">Personajes</button>
+                <button onclick="showSection('historia')" class="nav-button text-sm sm:text-base py-2 px-3 m-1 rounded hover:bg-purple-500 transition-colors">Historia</button>
+                <button onclick="showSection('estilo')" class="nav-button text-sm sm:text-base py-2 px-3 m-1 rounded hover:bg-purple-500 transition-colors">Estilo</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4 sm:p-6 md:p-8">
+        <section id="introduccion" class="content-section active">
+            <div class="bg-slate-800 p-6 rounded-lg shadow-xl mb-6">
+                <h2 class="text-3xl font-semibold mb-4 text-purple-400 border-b-2 border-purple-500 pb-2">1. Introducción</h2>
+                <p class="mb-4 text-slate-400">Esta sección presenta la información general del juego "El Itinerante", incluyendo su título, plataforma objetivo, género, audiencia y un resumen conciso del concepto del juego. Es el punto de partida para entender la visión general del proyecto.</p>
+                <ul class="list-disc list-inside space-y-2 mb-4">
+                    <li><strong>Título del Juego:</strong> El Itinerante</li>
+                    <li><strong>Plataforma:</strong> Android</li>
+                    <li><strong>Género:</strong> RPG de Mundo Abierto, Terror, Aventura Sobrenatural</li>
+                    <li><strong>Audiencia Objetivo:</strong> Jugadores que disfrutan de RPGs profundos con narrativas morales complejas, exploración de mundo abierto y temáticas de terror y fantasía oscura. Fans de juegos como la saga <em>Shin Megami Tensei/Persona</em>, <em>The Witcher</em>, <em>Fable</em>, con elementos de MMOs como <em>Albion Online</em> en cuanto a la libertad y la interacción en el mundo.</li>
+                </ul>
+                <h3 class="text-2xl font-semibold mb-2 text-purple-400">Resumen del Juego</h3>
+                <p class="text-slate-400">"El Itinerante" es un RPG de mundo abierto para Android donde el jugador es una entidad capaz de transitar entre los reinos de los ángeles, los demonios y los humanos. Las acciones del jugador dictan su alineación moral, otorgándole poderes y debilidades únicas, y alterando su percepción del mundo. El objetivo principal gira en torno a la gestión de almas: liberarlas, consumirlas o corromperlas, mientras se enfrenta a espíritus, demonios y las consecuencias de sus propias elecciones en una lucha por el equilibrio o el dominio.</p>
+            </div>
+
+            <div class="bg-slate-800 p-6 rounded-lg shadow-xl">
+                <h2 class="text-3xl font-semibold mb-4 text-purple-400 border-b-2 border-purple-500 pb-2">2. Concepto del Juego</h2>
+                <p class="mb-4 text-slate-400">Aquí se detalla la idea central detrás de "El Itinerante" y los aspectos que lo hacen único en el mercado. Estos puntos son cruciales para definir la identidad del juego y atraer a la audiencia objetivo.</p>
+                <h3 class="text-2xl font-semibold mb-2 text-purple-400">Idea Central</h3>
+                <p class="mb-3 text-slate-400">El jugador es un "Itinerante", un ser con la capacidad única de caminar entre el bien y el mal, lo divino y lo profano, lo humano y lo sobrenatural. Sus elecciones tienen un impacto directo y visible en sus habilidades, el mundo que lo rodea y su destino final.</p>
+                <h3 class="text-2xl font-semibold mb-2 text-purple-400">Puntos de Venta Únicos (USP)</h3>
+                <ul class="list-disc list-inside space-y-2 text-slate-400">
+                    <li><strong>Sistema de Moralidad Dinámico:</strong> Tres estados principales (Ángel, Demonio, Humano Neutral) que alteran radicalmente el gameplay, las habilidades y la interfaz del mundo.</li>
+                    <li><strong>Mundos Interconectados:</strong> El mismo mapa base se experimenta de forma diferente según la alineación del jugador, revelando secretos, caminos y enemigos distintos.</li>
+                    <li><strong>Gestión Profunda de Almas:</strong> Las almas no son solo un recurso, sino entidades con las que interactuar de múltiples formas (liberar, consumir, corromper, ayudar).</li>
+                    <li><strong>NPCs con IA Avanzada:</strong> Personajes no jugadores que reaccionan de forma realista, toman sus propias decisiones y con los que se puede dialogar de forma natural (objetivo ambicioso).</li>
+                    <li><strong>Libertad Post-Jefe Final:</strong> Tras derrotar al jefe final, el juego se transforma en una experiencia sandbox con plenos poderes.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="mecanicas" class="content-section">
+            <div class="bg-slate-800 p-6 rounded-lg shadow-xl mb-6">
+                <h2 class="text-3xl font-semibold mb-4 text-purple-400 border-b-2 border-purple-500 pb-2">4. Mecánicas de Juego</h2>
+                <p class="mb-6 text-slate-400">Esta sección es el corazón del GDD, detallando cómo se juega "El Itinerante". Explora el bucle de juego principal, el crucial sistema de moralidad con sus diferentes estados (Ángel, Demonio, Humano Neutral), el combate, la progresión de habilidades y la gestión de almas. La interactividad aquí te permitirá ver cómo cambian las características del jugador según su alineación moral.</p>
+
+                <h3 class="text-2xl font-semibold mb-3 text-purple-400">4.1. Bucle de Juego Principal (Core Loop)</h3>
+                <ol class="list-decimal list-inside space-y-2 mb-6 text-slate-400">
+                    <li><strong>Explorar:</strong> Moverse por el mundo (Humano, Angélico o Demoníaco según el estado).</li>
+                    <li><strong>Interactuar:</strong> Hablar con NPCs, encontrar almas, descubrir misiones.</li>
+                    <li><strong>Decidir:</strong> Tomar decisiones que afecten la barra de moralidad (ayudar, dañar, consumir, liberar).</li>
+                    <li><strong>Combatir/Resolver:</strong> Enfrentarse a enemigos o resolver puzzles usando las habilidades del estado actual.</li>
+                    <li><strong>Fortalecerse:</strong> Ganar experiencia, habilidades, artefactos o almas.</li>
+                    <li><strong>Adaptarse:</strong> Ver cómo el mundo y las habilidades cambian según la moralidad.</li>
+                </ol>
+
+                <h3 class="text-2xl font-semibold mb-1 text-purple-400">4.2. Sistema de Moralidad: El Itinerante Trascendente</h3>
+                <p class="mb-4 text-slate-400">Haz clic en un estado moral para ver los detalles asociados:</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6 text-center">
+                    <div id="moral-angel" class="moral-bar-segment p-4 border-2 border-sky-500 rounded-lg bg-sky-700/30 hover:bg-sky-600/40 text-sky-200" onclick="showMoralState('angel')">
+                        <span class="text-xl font-medium">👼 Ángel</span>
+                    </div>
+                    <div id="moral-human" class="moral-bar-segment p-4 border-2 border-gray-500 rounded-lg bg-gray-700/30 hover:bg-gray-600/40 text-gray-200 active-moral" onclick="showMoralState('human')">
+                        <span class="text-xl font-medium">👤 Humano Neutral</span>
+                    </div>
+                    <div id="moral-demon" class="moral-bar-segment p-4 border-2 border-red-600 rounded-lg bg-red-800/30 hover:bg-red-700/40 text-red-200" onclick="showMoralState('demon')">
+                        <span class="text-xl font-medium">😈 Demonio</span>
+                    </div>
+                </div>
+                
+                <div id="moral-details-container" class="mt-6">
+                    </div>
+                 <p class="mt-4 text-sm text-slate-500"><strong>Nota:</strong> La barra de moralidad en el juego sería una interfaz más granular (Ángel Puro --- Ángel --- Humano Neutral --- Demonio --- Demonio Puro). Esta es una representación simplificada.</p>
+                 <p class="text-slate-400 mt-4"><strong>Acciones que Afectan la Moralidad:</strong></p>
+                 <ul class="list-disc list-inside space-y-1 text-sm text-slate-500">
+                    <li><strong>Hacia Ángel:</strong> Liberar almas, ayudar a humanos desinteresadamente, evitar asesinatos, ayudar a almas a cumplir asuntos pendientes, perdonar enemigos, convertir demonios.</li>
+                    <li><strong>Hacia Demonio:</strong> Consumir almas para fortalecerse, quemar almas, tentar humanos al mal, convertir almas en espíritus malignos, asesinar inocentes.</li>
+                    <li><strong>Neutralidad:</strong> Acciones que no tienen un fuerte componente moral o que equilibran actos buenos y malos. Realizar exorcismos como humano, usar herramientas para defenderse sin necesariamente destruir.</li>
+                </ul>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6 mb-6">
+                <div class="bg-slate-800 p-6 rounded-lg shadow-xl">
+                    <h3 class="text-2xl font-semibold mb-3 text-purple-400">4.3. Combate</h3>
+                    <ul class="list-disc list-inside space-y-2 text-slate-400">
+                        <li><strong>General:</strong> Sistema en tiempo real (preferido para Android).</li>
+                        <li><strong>Combate como Ángel:</strong> Movilidad, ataques de luz/sagrados, control de masas, apoyo.</li>
+                        <li><strong>Combate como Demonio:</strong> Daño bruto, ataques de fuego/sombras, corrupción, esbirros.</li>
+                        <li><strong>Combate como Humano:</strong> Táctico, herramientas específicas, trampas, evasión, sigilo.</li>
+                    </ul>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-lg shadow-xl">
+                    <h3 class="text-2xl font-semibold mb-3 text-purple-400">4.4. Habilidades y Progresión</h3>
+                     <ul class="list-disc list-inside space-y-2 text-slate-400">
+                        <li><strong>Adquisición Ángel/Demonio:</strong> Matar monstruos, umbrales de moralidad.</li>
+                        <li><strong>Adquisición Humano:</strong> Encontrar/fabricar artefactos, aprender rituales.</li>
+                        <li><strong>Árboles de Habilidades:</strong> Separados para Ángel, Demonio, Humano.</li>
+                        <li><strong>Consumo de Almas (Demonio):</strong> Otorga puntos de habilidad demoníaca, acelera corrupción.</li>
+                        <li><strong>Redención (Ángel):</strong> Otorga puntos de habilidad angélica, favores divinos.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 p-6 rounded-lg shadow-xl mb-6">
+                <h3 class="text-2xl font-semibold mb-3 text-purple-400">4.5. Gestión de Almas</h3>
+                <p class="mb-2 text-slate-400">Las almas son un componente central. Tipos: Puras, atormentadas, corruptas, especiales.</p>
+                <p class="text-slate-400 font-medium">Interacciones:</p>
+                <ul class="list-disc list-inside space-y-2 mt-2 text-slate-400">
+                    <li><strong>Liberar:</strong> Ayudar a un alma a resolver su asunto pendiente. Recompensa: Karma positivo.</li>
+                    <li><strong>Consumir (Demonio):</strong> Absorber energía del alma. Recompensa: Poder, karma negativo.</li>
+                    <li><strong>Quemar (Demonio):</strong> Destruir un alma. Efecto intimidatorio.</li>
+                    <li><strong>Corromper (Demonio):</strong> Convertir alma en sirviente maligno.</li>
+                    <li><strong>Deborar (Enemigos):</strong> Los enemigos también buscan almas; proteger o competir.</li>
+                </ul>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-lg shadow-xl mb-6">
+                <h3 class="text-2xl font-semibold mb-3 text-purple-400">4.6. Interacción con el Mundo y Planos</h3>
+                 <ul class="list-disc list-inside space-y-2 text-slate-400">
+                    <li><strong>Cambio de Plano:</strong> Requiere rituales, portales o estados morales específicos.</li>
+                    <li><strong>Mundo Humano como Ángel:</strong> Invisible para la mayoría, intervenciones sutiles, interacción con objetos sagrados.</li>
+                    <li><strong>Mundo Humano como Demonio:</strong> Invisible, susurrar tentaciones, posesión, interacción con objetos profanos.</li>
+                    <li><strong>Efectos de la Moralidad en el Entorno:</strong> Áreas cambian apariencia/accesibilidad.</li>
+                </ul>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-lg shadow-xl mb-6">
+                <h3 class="text-2xl font-semibold mb-3 text-purple-400">4.7. Interacción con NPCs (IA Avanzada)</h3>
+                 <ul class="list-disc list-inside space-y-2 text-slate-400">
+                    <li><strong>Objetivo Ambicioso:</strong> NPCs con rutinas, motivaciones, recuerdos.</li>
+                    <li><strong>Sistema de Diálogo:</strong> Palabras clave o PNL simplificado (árboles de diálogo).</li>
+                    <li><strong>Reacciones:</strong> Basadas en fama/infamia y alineación del jugador.</li>
+                    <li><strong>Toma de Decisiones Propia (Simulada):</strong> Facciones, estados de alerta/confianza.</li>
+                </ul>
+            </div>
+             <div class="bg-slate-800 p-6 rounded-lg shadow-xl mb-6">
+                <h3 class="text-2xl font-semibold mb-3 text-purple-400">4.8. Misiones y Objetivos</h3>
+                 <ul class="list-disc list-inside space-y-2 text-slate-400">
+                    <li><strong>Principales:</strong> Historia del Itinerante, orígenes, enfrentar a "Everything".</li>
+                    <li><strong>Secundarias (dependientes de moralidad):</strong>
+                        <ul class="list-['-_'] list-inside ml-4">
+                            <li>Ángel: Rescatar almas, proteger inocentes.</li>
+                            <li>Demonio: Corromper influyentes, robar artefactos.</li>
+                            <li>Humano: Investigar paranormal, cazar monstruos.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Asuntos Pendientes de Almas:</strong> Mini-misiones para liberar espíritus.</li>
+                </ul>
+            </div>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div class="bg-slate-800 p-6 rounded-lg shadow-xl">
+                    <h3 class="text-2xl font-semibold mb-3 text-purple-400">4.9. Jefe Final: "Everything"</h3>
+                    <ul class="list-disc list-inside space-y-2 text-slate-400">
+                        <li><strong>Naturaleza:</strong> Entidad de poder inmenso, guardián del equilibrio o suma de energía álmica.</li>
+                        <li><strong>Combate:</strong> Podría requerir uso de las tres formas del Itinerante.</li>
+                        <li><strong>Recompensa:</strong> Habilidad "El Itinerante Completo" (cambiar de modo a voluntad), Mundo Abierto Total.</li>
+                    </ul>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-lg shadow-xl">
+                    <h3 class="text-2xl font-semibold mb-3 text-purple-400">4.10. Post-Jefe: Mundo Abierto Estilo "Vice City"</h3>
+                    <ul class="list-disc list-inside space-y-2 text-slate-400">
+                        <li><strong>Libertad Total.</strong></li>
+                        <li><strong>Control de NPCs</strong> (habilidad de alto nivel).</li>
+                        <li><strong>Gestión de Territorio/Influencia.</strong></li>
+                        <li><strong>Desafíos Continuos.</strong></li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section id="mundo" class="content-section">
+            <div class="bg-slate-800 p-6 rounded-lg shadow-xl mb-6">
+                 <h2 class="text-3xl font-semibold mb-4 text-purple-400 border-b-2 border-purple-500 pb-2">5. Mundo del Juego</h2>
+                <p class="mb-6 text-slate-400">Esta sección describe el entorno en el que se desarrolla "El Itinerante". Cubre el diseño general del mundo abierto, los diferentes planos de existencia (Humano, Angélico, Demoníaco), cómo se viaja entre ellos y algunos puntos de interés clave que el jugador podrá descubrir.</p>
+
+                <p class="mb-3 text-slate-400"><strong>Diseño del Mundo Abierto:</strong> Un mapa grande y diverso con múltiples biomas y puntos de interés, permitiendo la superposición de las "capas" angélica, demoníaca y humana.</p>
+                <p class="mb-6 text-slate-400"><strong>Viaje entre Planos:</strong> No siempre es un simple cambio de filtro visual. Puede implicar atravesar portales, realizar rituales o que ciertas áreas solo sean "visibles" o "accesibles" en un estado moral específico.</p>
+
+                <div class="mb-6">
+                    <div class="border-b border-slate-700">
+                        <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                            <button onclick="showTab('plano-humano', this)" class="tab-button active whitespace-nowrap py-4 px-1 border-b-2 border-purple-500 text-purple-400 font-medium text-sm hover:border-purple-400 hover:text-purple-300">
+                                Plano Humano
+                            </button>
+                            <button onclick="showTab('plano-angelico', this)" class="tab-button whitespace-nowrap py-4 px-1 border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-500 font-medium text-sm">
+                                Plano Angélico
+                            </button>
+                            <button onclick="showTab('plano-demoniaco', this)" class="tab-button whitespace-nowrap py-4 px-1 border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-500 font-medium text-sm">
+                                Plano Demoníaco
+                            </button>
+                        </nav>
+                    </div>
+                    <div id="plano-humano" class="tab-content active py-4">
+                        <h4 class="text-xl font-semibold mb-2 text-sky-300">Plano Humano</h4>
+                        <p class="text-slate-400">Ciudades modernas, pueblos olvidados, bosques sombríos, ruinas antiguas. Puntos de acceso a otros planos (iglesias consagradas, cementerios profanados, bibliotecas con grimorios).</p>
+                        <p class="mt-2 text-sm text-slate-500"><em>Atmósfera: Terror sutil, familiar pero inquietante. Colores desaturados, iluminación atmosférica.</em></p>
+                    </div>
+                    <div id="plano-angelico" class="tab-content hidden py-4">
+                        <h4 class="text-xl font-semibold mb-2 text-sky-300">Plano Angélico (Celestial)</h4>
+                        <p class="text-slate-400">Ciudadelas flotantes, jardines celestiales, bibliotecas de conocimiento. La arquitectura es fluida y luminosa, un mundo de orden y luz, pero quizás con una rigidez opresiva.</p>
+                        <p class="mt-2 text-sm text-slate-500"><em>Atmósfera: Majestuosa, etérea, orden perfecto. Colores brillantes pero fríos, formas geométricas, luz divina.</em></p>
+                    </div>
+                    <div id="plano-demoniaco" class="tab-content hidden py-4">
+                        <h4 class="text-xl font-semibold mb-2 text-red-400">Plano Demoníaco (Inframundo)</h4>
+                        <p class="text-slate-400">Desiertos de ceniza, ríos de magma, laberintos de carne y hueso, palacios de señores demoníacos. Un paisaje de pesadilla, caótico y corrupto.</p>
+                        <p class="mt-2 text-sm text-slate-500"><em>Atmósfera: Pesadillesca, caótica, opresiva. Colores cálidos y agresivos (rojos, naranjas), formas orgánicas retorcidas.</em></p>
+                    </div>
+                </div>
+
+                <h3 class="text-2xl font-semibold mb-3 text-purple-400">Puntos de Interés Clave</h3>
+                <ul class="list-disc list-inside space-y-2 text-slate-400">
+                    <li>La Biblioteca de las Almas Perdidas</li>
+                    <li>El Trono Vacío (en el reino demoníaco o angélico)</li>
+                    <li>La Ciudad Silenciosa (un lugar donde las almas no pueden hablar)</li>
+                    <li>El Árbol del Conocimiento (del Bien y del Mal)</li>
+                </ul>
+                 <h3 class="text-2xl font-semibold mt-6 mb-3 text-purple-400">Lore</h3>
+                <div class="space-y-3 text-slate-400">
+                    <p><strong>Almas:</strong> Energía vital; puras, atormentadas, corruptas. Tienen asuntos pendientes.</p>
+                    <p><strong>Espíritus:</strong> Almas no trascendidas; benignos o malévolos. Consumir almas los fortalece.</p>
+                    <p><strong>Demonios:</strong> Espíritus con gran poder corrupto o ángeles caídos. Jerarquías propias.</p>
+                    <p><strong>Ángeles:</strong> Seres de luz y orden; pueden tener agendas propias.</p>
+                    <p><strong>El "Everything":</strong> Entidad primordial u origen de las almas; guardián del equilibrio.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="personajes" class="content-section">
+            <div class="bg-slate-800 p-6 rounded-lg shadow-xl mb-6">
+                <h2 class="text-3xl font-semibold mb-4 text-purple-400 border-b-2 border-purple-500 pb-2">6. Personajes</h2>
+                <p class="mb-6 text-slate-400">Esta sección introduce a los habitantes del mundo de "El Itinerante". Desde el propio jugador y los diversos personajes no jugadores (NPCs) hasta las facciones en conflicto y los imponentes jefes que aguardan.</p>
+
+                <div class="mb-6">
+                    <h3 class="text-2xl font-semibold mb-2 text-purple-400">6.1. El Jugador (El Itinerante)</h3>
+                    <ul class="list-disc list-inside space-y-1 text-slate-400">
+                        <li><strong>Personalización:</strong> Apariencia física (base humana), alterable sutilmente por alineación (ojos, piel, alas vestigiales, cuernos sutiles).</li>
+                        <li><strong>Voz:</strong> Podría cambiar ligeramente según la alineación.</li>
+                    </ul>
+                </div>
+
+                <div class="mb-6">
+                    <h3 class="text-2xl font-semibold mb-2 text-purple-400">6.2. NPCs</h3>
+                    <ul class="list-disc list-inside space-y-1 text-slate-400">
+                        <li><strong>Humanos:</strong> Ciudadanos, cazadores de monstruos, cultistas, sacerdotes, víctimas, criminales.</li>
+                        <li><strong>Almas:</strong> Espíritus con asuntos pendientes, almas guía, almas corruptoras.</li>
+                        <li><strong>Espíritus:</strong> Desde pequeños entes hasta poderosos poltergeists o guardianes.</li>
+                        <li><strong>Ángeles:</strong> Guerreros, sanadores, guías, jueces implacables, burócratas celestiales.</li>
+                        <li><strong>Demonios:</strong> Tentadores, brutos, señores demoníacos con legiones y territorios.</li>
+                        <li><strong>Seres Mágicos (invocables por Humanos):</strong> Elementales, genios, gólems.</li>
+                    </ul>
+                </div>
+
+                <div class="mb-6">
+                    <h3 class="text-2xl font-semibold mb-2 text-purple-400">6.3. Facciones</h3>
+                    <ul class="list-disc list-inside space-y-1 text-slate-400">
+                        <li>La Iglesia / Órdenes Sagradas</li>
+                        <li>Cultos Demoníacos / Sociedades Secretas</li>
+                        <li>Gremios de Cazadores de Monstruos</li>
+                        <li>Concilios de Almas Errantes</li>
+                        <li>Jerarquías Angélicas y Demoníacas</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-2xl font-semibold mb-2 text-purple-400">6.4. Jefes</h3>
+                    <ul class="list-disc list-inside space-y-1 text-slate-400">
+                        <li>Guardianes de umbrales entre planos.</li>
+                        <li>Demonios mayores o Arcángeles corruptos.</li>
+                        <li>Humanos que han obtenido un poder oscuro o divino inmenso.</li>
+                        <li><strong>"Everything":</strong> El jefe final, una entidad cósmica o primordial. Su diseño debe ser imponente y misterioso.</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+        
+        <section id="historia" class="content-section">
+            <div class="bg-slate-800 p-6 rounded-lg shadow-xl mb-6">
+                <h2 class="text-3xl font-semibold mb-4 text-purple-400 border-b-2 border-purple-500 pb-2">3. Historia y Ambientación</h2>
+                <p class="mb-6 text-slate-400">Sumérgete en la narrativa y el trasfondo de "El Itinerante". Esta sección establece la premisa del juego, presenta al enigmático protagonista, describe los conflictos principales y detalla la ambientación de los mundos interconectados, así como el lore fundamental que da vida a este universo.</p>
+
+                <div class="mb-6">
+                    <h3 class="text-2xl font-semibold mb-2 text-purple-400">Premisa</h3>
+                    <p class="text-slate-400">En un mundo donde el velo entre las dimensiones es delgado, las almas de los difuntos son un bien preciado y una fuente de poder. Espíritus errantes buscan consumir almas para evitar el olvido o, si acumulan suficientes, ascender como demonios. Los ángeles intentan guiar a las almas hacia la redención, mientras que los demonios buscan corromperlas y arrastrarlas a sus dominios. Los humanos, a menudo ignorantes de estas luchas, son presas fáciles y sus almas, las más codiciadas.</p>
+                </div>
+
+                <div class="mb-6">
+                    <h3 class="text-2xl font-semibold mb-2 text-purple-400">El Itinerante</h3>
+                    <p class="text-slate-400">El jugador comienza como una entidad enigmática, quizás un alma que ha escapado a un destino ordinario o un ser creado con un propósito desconocido. Descubre su capacidad para influir en el flujo de almas y su naturaleza cambiante. No recuerda completamente su origen, y parte del viaje podría ser descubrir quién o qué es.</p>
+                </div>
+
+                <div class="mb-6">
+                    <h3 class="text-2xl font-semibold mb-2 text-purple-400">Conflicto Principal</h3>
+                    <ul class="list-disc list-inside space-y-1 text-slate-400">
+                        <li>La lucha por el control de las almas.</li>
+                        <li>La amenaza de los demonios que buscan sumir el mundo humano en el caos.</li>
+                        <li>El conflicto interno del Itinerante al equilibrar sus naturalezas opuestas o sucumbir a una de ellas.</li>
+                    </ul>
+                </div>
+                 <div class="mb-6">
+                    <h3 class="text-2xl font-semibold mb-2 text-purple-400">Ambientación (Resumen)</h3>
+                    <p class="text-slate-400">Revisa la sección "Mundo" para detalles sobre los planos: Humano (terror contemporáneo), Angélico (orden etéreo y opresivo), Demoníaco (pesadilla caótica).</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="estilo" class="content-section">
+            <div class="bg-slate-800 p-6 rounded-lg shadow-xl mb-6">
+                <h2 class="text-3xl font-semibold mb-4 text-purple-400 border-b-2 border-purple-500 pb-2">7. Estilo Artístico y Audio</h2>
+                 <p class="mb-6 text-slate-400">Esta sección define la identidad visual y sonora de "El Itinerante", crucial para crear la atmósfera de terror y fantasía oscura. Describe la dirección artística general, las paletas de colores y características de cada plano, y las directrices para el diseño de sonido y la música.</p>
+
+                <div class="mb-6">
+                    <h3 class="text-2xl font-semibold mb-2 text-purple-400">Dirección Artística</h3>
+                    <ul class="list-disc list-inside space-y-2 text-slate-400">
+                        <li><strong>General:</strong> Realismo oscuro con elementos góticos y surreales.</li>
+                        <li><strong>Mundo Humano:</strong> Paleta de colores desaturada, iluminación atmosférica (niebla, sombras). Terror sutil.
+                            <div class="flex space-x-2 mt-1"><div class="w-6 h-6 bg-gray-600 rounded"></div><div class="w-6 h-6 bg-gray-700 rounded"></div><div class="w-6 h-6 bg-slate-500 rounded"></div></div>
+                        </li>
+                        <li><strong>Reino Angélico:</strong> Colores brillantes pero fríos (ej. blancos, celestes, dorados pálidos). Formas geométricas, luz divina, arquitectura majestuosa y limpia.
+                            <div class="flex space-x-2 mt-1"><div class="w-6 h-6 bg-sky-300 rounded"></div><div class="w-6 h-6 bg-sky-100 rounded"></div><div class="w-6 h-6 bg-yellow-200 rounded"></div></div>
+                        </li>
+                        <li><strong>Reino Demoníaco:</strong> Colores cálidos y agresivos (rojos, naranjas, negros profundos). Formas orgánicas y retorcidas, fuego, decadencia.
+                            <div class="flex space-x-2 mt-1"><div class="w-6 h-6 bg-red-600 rounded"></div><div class="w-6 h-6 bg-orange-500 rounded"></div><div class="w-6 h-6 bg-black rounded"></div></div>
+                        </li>
+                        <li><strong>Personajes:</strong> Diseños distintivos que reflejen naturaleza y alineación. El Itinerante con cambios visuales sutiles pero notables en cada estado.</li>
+                    </ul>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="mb-6 md:mb-0">
+                        <h3 class="text-2xl font-semibold mb-2 text-purple-400">Diseño de Sonido</h3>
+                        <ul class="list-disc list-inside space-y-1 text-slate-400">
+                            <li>Sonidos ambientales inmersivos para cada plano.</li>
+                            <li>Susurros, lamentos de almas, gruñidos demoníacos, coros celestiales.</li>
+                            <li>Efectos de sonido impactantes para habilidades y combate.</li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <h3 class="text-2xl font-semibold mb-2 text-purple-400">Música</h3>
+                        <ul class="list-disc list-inside space-y-1 text-slate-400">
+                            <li>Banda sonora orquestal y atmosférica.</li>
+                            <li>Temas distintos para cada plano y estado de moralidad.</li>
+                            <li>Música dinámica que cambie según la tensión o la situación.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="text-center p-6 mt-8 border-t border-slate-700 text-slate-500">
+        <p>&copy; 2024 Conceptual GDD para "El Itinerante".</p>
+        <p class="text-xs mt-1">Esta es una representación interactiva de un Documento de Diseño de Juego.</p>
+    </footer>
+
+    <script>
+        const moralStatesData = {
+            angel: {
+                title: "👼 Estado: Ángel",
+                theme: "angel-theme",
+                percepcion: "El mundo se ve más brillante, pacífico. Se pueden ver auras, caminos ocultos de luz, y almas puras o necesitadas de guía. Algunos NPCs reaccionarán favorablemente.",
+                habilidadesActivas: [
+                    "<strong>Teletransportación:</strong> Movimiento rápido a lugares conocidos o visibles.",
+                    "<strong>Revertir Tiempo (Localizado):</strong> Rebobinar eventos recientes en un área pequeña. Costo de energía alto.",
+                    "<strong>Conversión Angélica:</strong> Intentar purificar demonios menores/espíritus para que se unan. Consume mucha energía.",
+                    "<strong>Sanación / Protección:</strong> Habilidades para curar aliados o protegerse."
+                ],
+                habilidadesPasivas: ["Resistencia a la corrupción.", "Mayor afinidad con magia de luz."],
+                debilidades: ["Vulnerable a ataques demoníacos potentes.", "Algunas áreas del inframundo pueden ser dañinas o inaccesibles.", "Pierde habilidades demoníacas."]
+            },
+            human: {
+                title: "👤 Estado: Humano Neutral",
+                theme: "human-theme",
+                percepcion: "El mundo se ve 'normal', sin los filtros sobrenaturales. Los humanos pueden ver al jugador e interactuar con él de forma natural. Se alcanza manteniendo la barra de moralidad en un punto medio.",
+                habilidades: [ // Combined for simplicity as they are tool-based
+                    "<strong>Exorcizar Humanos:</strong> Liberar a un humano poseído. Requiere ritual, consume energía/recursos.",
+                    "<strong>Combatir con Herramientas Mágicas:</strong> Usar armas y objetos imbuidos (sal bendita, balas de plata, amuletos).",
+                    "<strong>Invocar Seres Mágicos:</strong> Llamar entidades neutrales/elementales con grimorios o artefactos."
+                ],
+                habilidadesPasivas: ["Capacidad de pasar desapercibido entre humanos.", "Acceso a facciones o misiones exclusivas para humanos."],
+                debilidades: ["Sin poderes inherentes de ángel o demonio.", "Depende de la preparación y los recursos.", "Vulnerable físicamente."]
+            },
+            demon: {
+                title: "😈 Estado: Demonio",
+                theme: "demon-theme",
+                percepcion: "El mundo se ve más oscuro, distorsionado, lleno de sombras y tentaciones. Se pueden ver las debilidades y pecados de los humanos, caminos corruptos. NPCs reaccionan con miedo o sumisión.",
+                habilidadesActivas: [
+                    "<strong>Quemar Almas:</strong> Destruir un alma para impulso temporal de poder o infundir miedo.",
+                    "<strong>Tentar Humanos:</strong> Influir en NPCs para que cometan actos malvados.",
+                    "<strong>Viaje Futuro (Visiones):</strong> Atisbos de posibles futuros (riesgo/recompensa).",
+                    "<strong>Crear Espíritus Malignos:</strong> Corromper un alma neutral o débil para que sirva.",
+                    "<strong>Ejército Maligno:</strong> Unir almas malignas o demonios menores."
+                ],
+                habilidadesPasivas: ["Resistencia al fuego sagrado (parcial).", "Mayor afinidad con magia oscura."],
+                debilidades: ["Vulnerable a ataques angélicos potentes.", "Algunas áreas sagradas pueden ser dañinas o inaccesibles.", "Pierde habilidades angélicas."]
+            }
+        };
+
+        function showSection(sectionId) {
+            const sections = document.querySelectorAll('.content-section');
+            sections.forEach(section => {
+                section.classList.remove('active');
+            });
+            document.getElementById(sectionId).classList.add('active');
+
+            const navButtons = document.querySelectorAll('.nav-button');
+            navButtons.forEach(button => {
+                button.classList.remove('active');
+                if (button.getAttribute('onclick').includes(sectionId)) {
+                    button.classList.add('active');
+                }
+            });
+             window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function showMoralState(stateKey) {
+            const data = moralStatesData[stateKey];
+            const container = document.getElementById('moral-details-container');
+            
+            let habilidadesHtml = '';
+            if (data.habilidadesActivas) {
+                habilidadesHtml += `<h4 class="text-lg font-semibold mt-3 mb-1">Habilidades Activas:</h4><ul class="list-disc list-inside space-y-1 text-sm">`;
+                data.habilidadesActivas.forEach(h => habilidadesHtml += `<li>${h}</li>`);
+                habilidadesHtml += `</ul>`;
+            }
+            if (data.habilidades) { // For Human Neutral
+                habilidadesHtml += `<h4 class="text-lg font-semibold mt-3 mb-1">Habilidades (basadas en herramientas y conocimiento):</h4><ul class="list-disc list-inside space-y-1 text-sm">`;
+                data.habilidades.forEach(h => habilidadesHtml += `<li>${h}</li>`);
+                habilidadesHtml += `</ul>`;
+            }
+            if (data.habilidadesPasivas) {
+                habilidadesHtml += `<h4 class="text-lg font-semibold mt-3 mb-1">Habilidades Pasivas:</h4><ul class="list-disc list-inside space-y-1 text-sm">`;
+                data.habilidadesPasivas.forEach(h => habilidadesHtml += `<li>${h}</li>`);
+                habilidadesHtml += `</ul>`;
+            }
+            if (data.debilidades) {
+                 habilidadesHtml += `<h4 class="text-lg font-semibold mt-3 mb-1">Debilidades:</h4><ul class="list-disc list-inside space-y-1 text-sm">`;
+                data.debilidades.forEach(d => habilidadesHtml += `<li>${d}</li>`);
+                habilidadesHtml += `</ul>`;
+            }
+
+            container.innerHTML = `
+                <div class="stat-block p-4 rounded-md shadow-md ${data.theme}">
+                    <h3 class="text-xl font-bold mb-2">${data.title}</h3>
+                    <div class="mb-3">
+                        <h4 class="text-lg font-semibold mb-1">Percepción del Mundo:</h4>
+                        <p class="text-sm">${data.percepcion}</p>
+                    </div>
+                    ${habilidadesHtml}
+                </div>
+            `;
+
+            document.querySelectorAll('.moral-bar-segment').forEach(seg => seg.classList.remove('active-moral'));
+            document.getElementById(`moral-${stateKey}`).classList.add('active-moral');
+        }
+
+        function showTab(tabId, TtbuttonElement) {
+            const tabContents = TtbuttonElement.closest('.mb-6').querySelectorAll('.tab-content');
+            tabContents.forEach(content => {
+                content.classList.add('hidden');
+                content.classList.remove('active');
+            });
+            document.getElementById(tabId).classList.remove('hidden');
+            document.getElementById(tabId).classList.add('active');
+
+            const tabButtons = TtbuttonElement.closest('nav').querySelectorAll('.tab-button');
+            tabButtons.forEach(button => {
+                button.classList.remove('active', 'text-purple-400', 'border-purple-500');
+                button.classList.add('text-slate-400', 'border-transparent');
+            });
+            TtbuttonElement.classList.add('active', 'text-purple-400', 'border-purple-500');
+            TtbuttonElement.classList.remove('text-slate-400', 'border-transparent');
+        }
+
+        // Initial call to set up default views
+        document.addEventListener('DOMContentLoaded', () => {
+            showSection('introduccion'); // Show introduction by default
+            showMoralState('human'); // Show human state by default in mechanics
+             // Ensure default tab is set for any tabbed sections
+            const defaultTabButton = document.querySelector('#mundo .tab-button.active');
+            if (defaultTabButton) {
+                 const defaultTabId = defaultTabButton.getAttribute('onclick').match(/'([^']+)'/)[1];
+                 showTab(defaultTabId, defaultTabButton);
+            }
+        });
+    </script>
+</body>
+</html>
+
